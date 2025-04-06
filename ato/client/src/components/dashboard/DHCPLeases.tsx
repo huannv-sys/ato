@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Search, RefreshCw, Wifi, Clock, Database } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Search, RefreshCw, Wifi, Clock, Database, Filter } from 'lucide-react';
 
 // Interface for DHCP Lease
 interface DHCPLease {
@@ -30,6 +31,9 @@ interface DHCPLeasesProps {
 const DHCPLeases: React.FC<DHCPLeasesProps> = ({ deviceId }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [autoRefresh, setAutoRefresh] = useState(true);
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [showFilters, setShowFilters] = useState(false);
+  const [dynamicFilter, setDynamicFilter] = useState<string>("all");
   
   // Fetch DHCP Leases
   const { data: leases, isLoading, error, refetch } = useQuery<DHCPLease[]>({
@@ -37,6 +41,16 @@ const DHCPLeases: React.FC<DHCPLeasesProps> = ({ deviceId }) => {
     enabled: !!deviceId,
     refetchInterval: autoRefresh ? 10000 : false, // Refresh every 10 seconds if auto-refresh is enabled
   });
+  
+  // Get unique statuses for filter dropdown
+  const uniqueStatuses = useMemo(() => {
+    if (!leases) return ["all"];
+    const statuses = new Set<string>(["all"]);
+    leases.forEach(lease => {
+      if (lease.status) statuses.add(lease.status);
+    });
+    return Array.from(statuses);
+  }, [leases]);
   
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchQuery(e.target.value);
@@ -50,16 +64,35 @@ const DHCPLeases: React.FC<DHCPLeasesProps> = ({ deviceId }) => {
     setAutoRefresh(!autoRefresh);
   };
   
-  // Filter leases based on search query
-  const filteredLeases = leases?.filter(lease => {
-    const query = searchQuery.toLowerCase();
-    return (
-      lease.address.toLowerCase().includes(query) ||
-      lease.macAddress.toLowerCase().includes(query) ||
-      (lease.hostName && lease.hostName.toLowerCase().includes(query)) ||
-      (lease.comment && lease.comment.toLowerCase().includes(query))
-    );
-  });
+  const resetFilters = () => {
+    setSearchQuery('');
+    setStatusFilter('all');
+    setDynamicFilter('all');
+  };
+  
+  // Filter leases based on search query, status, and dynamic/static
+  const filteredLeases = useMemo(() => {
+    return leases?.filter(lease => {
+      // Text search filter
+      const query = searchQuery.toLowerCase();
+      const matchesSearch = query === '' || 
+        lease.address.toLowerCase().includes(query) ||
+        lease.macAddress.toLowerCase().includes(query) ||
+        (lease.hostName && lease.hostName.toLowerCase().includes(query)) ||
+        (lease.comment && lease.comment.toLowerCase().includes(query));
+      
+      // Status filter
+      const matchesStatus = statusFilter === 'all' || lease.status === statusFilter;
+      
+      // Dynamic/Static filter
+      const matchesDynamic = 
+        dynamicFilter === 'all' || 
+        (dynamicFilter === 'dynamic' && lease.dynamic) || 
+        (dynamicFilter === 'static' && !lease.dynamic);
+      
+      return matchesSearch && matchesStatus && matchesDynamic;
+    }) || [];
+  }, [leases, searchQuery, statusFilter, dynamicFilter]);
   
   // Get status badge color
   const getStatusBadge = (status: string) => {
@@ -124,16 +157,88 @@ const DHCPLeases: React.FC<DHCPLeasesProps> = ({ deviceId }) => {
         </div>
       </CardHeader>
       <CardContent>
-        <div className="relative mb-4">
-          <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-500" />
-          <Input
-            type="text"
-            placeholder="Search by IP, MAC, Hostname..."
-            className="pl-8 bg-gray-800 border-gray-700 text-gray-200"
-            value={searchQuery}
-            onChange={handleSearch}
-          />
+        <div className="flex gap-2 mb-4">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => setShowFilters(!showFilters)}
+            className={`bg-gray-800 text-gray-400 ${showFilters ? 'border-primary text-primary' : ''}`}
+          >
+            <Filter className="h-4 w-4 mr-1" />
+            Lọc
+          </Button>
+          
+          {(searchQuery || statusFilter !== 'all' || dynamicFilter !== 'all') && (
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={resetFilters}
+              className="bg-gray-800 text-gray-400"
+            >
+              Xóa bộ lọc
+            </Button>
+          )}
         </div>
+        
+        {showFilters && (
+          <div className="p-3 bg-gray-800/50 rounded-md border border-gray-700 mb-4 grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="flex flex-col">
+              <label className="text-xs text-gray-400 mb-1">Tìm kiếm</label>
+              <div className="relative">
+                <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-500" />
+                <Input
+                  type="text"
+                  placeholder="IP, MAC, hoặc tên máy chủ..."
+                  className="pl-8 bg-gray-800 border-gray-700 text-gray-200"
+                  value={searchQuery}
+                  onChange={handleSearch}
+                />
+              </div>
+            </div>
+            
+            <div className="flex flex-col">
+              <label className="text-xs text-gray-400 mb-1">Trạng thái</label>
+              <Select 
+                value={statusFilter}
+                onValueChange={setStatusFilter}
+              >
+                <SelectTrigger className="h-10 bg-gray-800 border-gray-700 text-gray-200">
+                  <SelectValue placeholder="Tất cả trạng thái" />
+                </SelectTrigger>
+                <SelectContent className="bg-gray-800 border-gray-700 text-gray-200">
+                  <SelectItem value="all">Tất cả trạng thái</SelectItem>
+                  {uniqueStatuses
+                    .filter(status => status !== 'all')
+                    .map(status => (
+                      <SelectItem key={status} value={status} className="capitalize">
+                        {status}
+                      </SelectItem>
+                    ))
+                  }
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="flex flex-col">
+              <label className="text-xs text-gray-400 mb-1">Kiểu</label>
+              <Select 
+                value={dynamicFilter}
+                onValueChange={setDynamicFilter}
+              >
+                <SelectTrigger className="h-10 bg-gray-800 border-gray-700 text-gray-200">
+                  <SelectValue placeholder="Tất cả" />
+                </SelectTrigger>
+                <SelectContent className="bg-gray-800 border-gray-700 text-gray-200">
+                  <SelectItem value="all">Tất cả</SelectItem>
+                  <SelectItem value="dynamic">Động (Dynamic)</SelectItem>
+                  <SelectItem value="static">Tĩnh (Static)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        )}
+        
+
         
         {isLoading ? (
           <div className="flex justify-center items-center h-40">
