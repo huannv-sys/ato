@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
 import { Interface } from "@shared/schema";
 import { 
   Table, 
@@ -12,6 +13,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/components/ui/toast";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface InterfaceTableProps {
   deviceId: number | null;
@@ -54,6 +57,9 @@ interface PPPConnectionData {
 const InterfaceTable: React.FC<InterfaceTableProps> = ({ deviceId }) => {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "up" | "down">("all");
+  const [typeFilter, setTypeFilter] = useState<string>("all");
   
   const { data: interfaceData, isLoading } = useQuery({
     queryKey: deviceId ? ['/api/devices', deviceId, 'interfaces'] : ['empty'],
@@ -230,13 +236,88 @@ const InterfaceTable: React.FC<InterfaceTableProps> = ({ deviceId }) => {
     return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${sizes[i]}`;
   };
 
+  // Filter interfaces based on search term, status and type
+  const filteredInterfaces = displayInterfaces.filter(iface => {
+    // Filter by search term
+    const matchesSearch = searchTerm === "" || 
+      iface.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      iface.comment?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      iface.type?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (iface.user && iface.user.toLowerCase().includes(searchTerm.toLowerCase()));
+    
+    // Filter by status
+    const matchesStatus = statusFilter === "all" || 
+      (statusFilter === "up" && iface.status === "up") ||
+      (statusFilter === "down" && iface.status === "down");
+    
+    // Filter by type
+    const matchesType = typeFilter === "all" || 
+      (iface.type && iface.type.toLowerCase().includes(typeFilter.toLowerCase()));
+    
+    return matchesSearch && matchesStatus && matchesType;
+  });
+
+  // Get unique interface types for the filter dropdown
+  const interfaceTypes = ["all", ...new Set(displayInterfaces.map(iface => 
+    iface.type ? iface.type.toLowerCase() : "unknown"
+  ))];
+
   return (
     <div className="bg-slate-900 rounded-lg shadow-md border border-slate-700 w-full">
       <div className="px-4 py-3 border-b border-slate-700 bg-slate-800 flex items-center justify-between">
-        <h3 className="font-medium text-white text-lg">PPPoE Connections</h3>
+        <h3 className="font-medium text-white text-lg">Network Interfaces</h3>
         <div className="flex items-center">
-          <span className="text-xs text-slate-400">{displayInterfaces.length} connections</span>
+          <span className="text-xs text-slate-400">{displayInterfaces.length} interfaces</span>
           <span className="inline-flex h-2 w-2 rounded-full bg-green-500 ml-2"></span>
+        </div>
+      </div>
+
+      {/* Filter controls */}
+      <div className="p-3 bg-slate-800/50 border-b border-slate-700 grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="flex flex-col">
+          <label className="text-xs text-slate-400 mb-1">Tìm kiếm</label>
+          <Input
+            placeholder="Tìm theo tên, nhận xét, loại..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="h-8 text-xs bg-slate-800 border-slate-700 text-slate-300"
+          />
+        </div>
+        
+        <div className="flex flex-col">
+          <label className="text-xs text-slate-400 mb-1">Lọc theo trạng thái</label>
+          <Select 
+            value={statusFilter}
+            onValueChange={(value) => setStatusFilter(value as "all" | "up" | "down")}
+          >
+            <SelectTrigger className="h-8 text-xs bg-slate-800 border-slate-700 text-slate-300">
+              <SelectValue placeholder="Chọn trạng thái" />
+            </SelectTrigger>
+            <SelectContent className="bg-slate-800 border-slate-700 text-slate-300">
+              <SelectItem value="all">Tất cả trạng thái</SelectItem>
+              <SelectItem value="up">Đang hoạt động (UP)</SelectItem>
+              <SelectItem value="down">Không hoạt động (DOWN)</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        
+        <div className="flex flex-col">
+          <label className="text-xs text-slate-400 mb-1">Lọc theo loại</label>
+          <Select 
+            value={typeFilter}
+            onValueChange={setTypeFilter}
+          >
+            <SelectTrigger className="h-8 text-xs bg-slate-800 border-slate-700 text-slate-300">
+              <SelectValue placeholder="Chọn loại interface" />
+            </SelectTrigger>
+            <SelectContent className="bg-slate-800 border-slate-700 text-slate-300">
+              {interfaceTypes.map(type => (
+                <SelectItem key={type} value={type} className="capitalize">
+                  {type === "all" ? "Tất cả loại" : type}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
@@ -257,8 +338,8 @@ const InterfaceTable: React.FC<InterfaceTableProps> = ({ deviceId }) => {
             </tr>
           </thead>
           <tbody>
-            {displayInterfaces.length > 0 ? (
-              displayInterfaces.map((iface) => (
+            {filteredInterfaces.length > 0 ? (
+              filteredInterfaces.map((iface) => (
                 <tr key={iface.id} className="border-b border-slate-800 hover:bg-slate-800/50">
                   <td className="text-slate-300 text-xs p-2 whitespace-nowrap">{iface.type}</td>
                   <td className="text-slate-300 text-xs p-2 font-medium whitespace-nowrap">{iface.name}</td>
@@ -298,12 +379,35 @@ const InterfaceTable: React.FC<InterfaceTableProps> = ({ deviceId }) => {
             ) : (
               <tr>
                 <td colSpan={10} className="text-center p-4 text-slate-400">
-                  Không tìm thấy kết nối PPPoE/L2TP nào
+                  {displayInterfaces.length > 0 
+                    ? "Không tìm thấy interface nào phù hợp với bộ lọc" 
+                    : "Không tìm thấy interface nào"}
                 </td>
               </tr>
             )}
           </tbody>
         </table>
+      </div>
+      
+      {/* Filter information */}
+      <div className="p-2 bg-slate-800/30 border-t border-slate-700 flex justify-between items-center text-xs text-slate-400">
+        <div>
+          Hiển thị {filteredInterfaces.length} / {displayInterfaces.length} interfaces
+        </div>
+        {(searchTerm || statusFilter !== "all" || typeFilter !== "all") && (
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="h-7 text-xs hover:bg-slate-700 hover:text-slate-300"
+            onClick={() => {
+              setSearchTerm("");
+              setStatusFilter("all");
+              setTypeFilter("all");
+            }}
+          >
+            Xóa bộ lọc
+          </Button>
+        )}
       </div>
     </div>
   );
