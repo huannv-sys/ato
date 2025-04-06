@@ -1,77 +1,85 @@
-// Hỗ trợ cho Vite dev server trong môi trường phát triển
-import { createServer as createViteServer } from 'vite';
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import express, { type Express } from "express";
+import fs from "fs";
+import path from "path";
+import { createServer as createViteServer, createLogger } from "vite";
+import { type Server } from "http";
+import viteConfig from "../vite.config";
+import { nanoid } from "nanoid";
 
-// Lấy __dirname trong ES modules
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const viteLogger = createLogger();
 
-/**
- * Tạo middleware Vite cho express
- */
-export async function createViteDevMiddleware(app: any) {
-  try {
-    const clientPath = path.resolve(__dirname, '../client');
-    
-    // Kiểm tra xem thư mục client có tồn tại không
-    if (!fs.existsSync(clientPath)) {
-      console.warn(`Thư mục client không tồn tại tại đường dẫn ${clientPath}`);
-      return null;
-    }
-    
-    // Tạo Vite server
-    const vite = await createViteServer({
-      root: clientPath,
-      server: {
-        middlewareMode: true,
-        hmr: true,
-        watch: {
-          usePolling: true,
-        },
-      },
-      appType: 'spa',
-    });
-    
-    // Sử dụng Vite's connecté middleware
-    app.use(vite.middlewares);
-    
-    console.log("Vite dev middleware đã được thiết lập thành công");
-    
-    // Trả về middleware Vite để tham chiếu nếu cần
-    return vite;
-  } catch (error) {
-    console.error("Lỗi khi thiết lập Vite dev middleware:", error);
-    return null;
-  }
+export function log(message: string, source = "express") {
+  const formattedTime = new Date().toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true,
+  });
+
+  console.log(`${formattedTime} [${source}] ${message}`);
 }
 
-/**
- * Middleware đối với yêu cầu HTML để Vite xử lý
- */
-export function createViteFallbackMiddleware(app: any) {
-  // Route cho tất cả các yêu cầu không phải API để Vite xử lý
-  app.use('*', (req: any, res: any, next: any) => {
-    // Bỏ qua các yêu cầu API
-    if (req.originalUrl.startsWith('/api/')) {
-      return next();
-    }
-    
+export async function setupVite(app: Express, server: Server) {
+  const serverOptions = {
+    middlewareMode: true,
+    hmr: { server },
+    allowedHosts: ["localhost", "0.0.0.0"],
+  };
+
+  const vite = await createViteServer({
+    ...viteConfig,
+    configFile: false,
+    customLogger: {
+      ...viteLogger,
+      error: (msg, options) => {
+        viteLogger.error(msg, options);
+        process.exit(1);
+      },
+    },
+    server: serverOptions,
+    appType: "custom",
+  });
+
+  app.use(vite.middlewares);
+  app.use("*", async (req, res, next) => {
+    const url = req.originalUrl;
+
     try {
-      // Đọc file index.html từ thư mục client
-      const clientPath = path.resolve(__dirname, '../client');
-      const indexPath = path.join(clientPath, 'index.html');
-      
-      if (fs.existsSync(indexPath)) {
-        const html = fs.readFileSync(indexPath, 'utf-8');
-        res.status(200).set({ 'Content-Type': 'text/html' }).end(html);
-      } else {
-        res.status(404).send('Không tìm thấy file index.html');
-      }
+      const clientTemplate = path.resolve(
+        import.meta.dirname,
+        "..",
+        "client",
+        "index.html",
+      );
+
+      // always reload the index.html file from disk incase it changes
+      let template = await fs.promises.readFile(clientTemplate, "utf-8");
+      template = template.replace(
+        `src="/src/main.tsx"`,
+        `src="/src/main.tsx?v=${nanoid()}"`,
+      );
+      const page = await vite.transformIndexHtml(url, template);
+      res.status(200).set({ "Content-Type": "text/html" }).end(page);
     } catch (e) {
-      console.error("Lỗi khi phục vụ index.html:", e);
-      res.status(500).end('Lỗi máy chủ nội bộ');
+      vite.ssrFixStacktrace(e as Error);
+      next(e);
     }
+  });
+}
+
+export function serveStatic(app: Express) {
+  const distPath = path.resolve(import.meta.dirname, "public");
+
+  if (!fs.existsSync(distPath)) {
+    throw new Error(
+      `Could not find the build directory: ${distPath}, make sure to build the client first`,
+    );
+  }
+
+  app.use(express.static(distPath));
+
+  // fall through to index.html if the file doesn't exist
+  app.use("*", (_req, res) => {
+    res.sendFile(path.resolve(distPath, "index.html"));
   });
 }

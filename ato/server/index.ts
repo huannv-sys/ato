@@ -1,66 +1,86 @@
-// File này thiết lập và chạy máy chủ
+import express, { type Request, Response, NextFunction } from "express";
+import { registerRoutes } from "./routes";
+import { setupVite, serveStatic, log } from "./vite";
+import { schedulerService } from "./services";
+import { db } from "./db"; // Import db để đảm bảo kết nối database được thiết lập
+import { sql } from "drizzle-orm";
 
-import express from "express";
-import dotenv from "dotenv";
-import { registerRoutes } from "./routes.js";
-import { schedulerService } from "./services/index.js";
-import { createViteDevMiddleware, createViteFallbackMiddleware } from "./vite.js";
-
-// Load các biến môi trường
-dotenv.config();
-
-// Thiết lập Express
 const app = express();
 app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
 
-// Thiết lập port và host từ biến môi trường
-const PORT = process.env.PORT || 5000;
-const HOST = process.env.HOST || "localhost";
+app.use((req, res, next) => {
+  const start = Date.now();
+  const path = req.path;
+  let capturedJsonResponse: Record<string, any> | undefined = undefined;
 
-// Middleware để ghi log các yêu cầu
-app.use((req: any, res: any, next: any) => {
-  console.log(`${req.method} ${req.url}`);
+  const originalResJson = res.json;
+  res.json = function (bodyJson, ...args) {
+    capturedJsonResponse = bodyJson;
+    return originalResJson.apply(res, [bodyJson, ...args]);
+  };
+
+  res.on("finish", () => {
+    const duration = Date.now() - start;
+    if (path.startsWith("/api")) {
+      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
+      if (capturedJsonResponse) {
+        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
+      }
+
+      if (logLine.length > 80) {
+        logLine = logLine.slice(0, 79) + "…";
+      }
+
+      log(logLine);
+    }
+  });
+
   next();
 });
 
-// Khởi động máy chủ
-async function startServer() {
+(async () => {
+  // Khởi tạo dịch vụ lập lịch sau khi kết nối database
   try {
-    // Khởi tạo các dịch vụ
+    // Kiểm tra kết nối database
+    await db.execute(sql`SELECT 1`);
+    console.log("Database connection established");
+    
+    // Khởi tạo scheduler service
     schedulerService.initialize();
-    
-    // Thiết lập Vite middleware cho phát triển front-end
-    const isDevelopment = process.env.NODE_ENV !== "production";
-    if (isDevelopment) {
-      console.log("Đang chạy trong môi trường phát triển, thiết lập Vite middleware");
-      await createViteDevMiddleware(app);
-    }
-    
-    // Đăng ký các route API
-    const server = await registerRoutes(app);
-    
-    // Fallback middleware cho Vite (đặt sau route API)
-    createViteFallbackMiddleware(app);
-    
-    // Khởi động máy chủ
-    server.listen(PORT, HOST as any, () => {
-      console.log(`Máy chủ đang chạy tại http://${HOST}:${PORT}`);
-    });
-    
-    // Xử lý lỗi không mong muốn
-    app.use((err: any, _req: any, res: any, _next: any) => {
-      console.error("Lỗi không mong muốn:", err);
-      res.status(500).json({
-        status: "error",
-        message: "Lỗi máy chủ nội bộ",
-        error: process.env.NODE_ENV === "development" ? err.message : undefined
-      });
-    });
-    
+    console.log("Scheduler service initialized");
   } catch (error) {
-    console.error("Lỗi khởi động máy chủ:", error);
-    process.exit(1);
+    console.error("Failed to initialize services:", error);
   }
-}
+  
+  const server = await registerRoutes(app);
 
-startServer();
+  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+    const status = err.status || err.statusCode || 500;
+    const message = err.message || "Internal Server Error";
+
+    res.status(status).json({ message });
+    throw err;
+  });
+
+  // importantly only setup vite in development and after
+  // setting up all the other routes so the catch-all route
+  // doesn't interfere with the other routes
+  if (app.get("env") === "development") {
+    await setupVite(app, server);
+  } else {
+    serveStatic(app);
+  }
+
+  // ALWAYS serve the app on port 5000
+  // this serves both the API and the client.
+  // It is the only port that is not firewalled.
+  const port = 5000;
+  server.listen({
+    port,
+    host: "0.0.0.0",
+    reusePort: true,
+  }, () => {
+    log(`serving on port ${port}`);
+  });
+})();

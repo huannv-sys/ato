@@ -1,6 +1,6 @@
 import { pgTable, text, serial, integer, boolean, timestamp, jsonb, real, pgEnum } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
-import { z } from "./zod";
+import { z } from "zod";
 
 // Phân quyền - xác định vai trò người dùng
 export const roleEnum = pgEnum('role', ['admin', 'operator', 'viewer']);

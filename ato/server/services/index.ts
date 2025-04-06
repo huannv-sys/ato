@@ -1,27 +1,29 @@
-// File này chứa các dịch vụ cần thiết cho ứng dụng
+// Export tất cả các services
+export * from './mikrotik';
+export * from './wireless';
+export * from './capsman';
+export * from './device_info';
+export * from './discovery';
+export * from './device-identification';
+export * from './device-classifier';
+export * from './traffic-collector';
+export * from './scheduler';
+export * from './dhcp';
+export * from './network-scanner';
 
-// Scheduler service tạm thời
-export const schedulerService = {
-  initialize: () => {
-    console.log('Scheduler service initialized (temporary implementation)');
-  },
-  setPollingInterval: (interval: number) => {
-    console.log(`Setting polling interval to ${interval} seconds`);
-  },
-  setMaxConcurrentDevices: (maxDevices: number) => {
-    console.log(`Setting max concurrent devices to ${maxDevices}`);
-  },
-  getDevicePollingStatus: () => {
-    return { active: true, lastPolled: new Date(), nextPoll: new Date() };
-  },
-  getStatus: () => {
-    return { 
-      active: true, 
-      metrics: { 
-        devices: 0, 
-        interfaces: 0, 
-        discoveredDevices: 0 
-      } 
-    };
-  }
+// Import từ client-management service
+import clientManagementService from './client-management';
+
+// Alias exports
+import * as deviceIdentificationService from './device-identification';
+import * as deviceClassifierService from './device-classifier';
+import * as trafficCollectorService from './traffic-collector';
+import * as discoveryService from './discovery';
+
+export {
+  clientManagementService,
+  deviceIdentificationService,
+  deviceClassifierService,
+  trafficCollectorService,
+  discoveryService
 };

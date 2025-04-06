@@ -1,68 +1,38 @@
 #!/bin/bash
 
-# Tạo thông báo màu
-YELLOW='\033[1;33m'
-GREEN='\033[0;32m'
-RED='\033[0;31m'
-NC='\033[0m' # No Color
+# Tạo thư mục cho repository nếu nó chưa tồn tại
+mkdir -p ato
 
-echo -e "${YELLOW}Đang cài đặt ATO từ GitHub...${NC}"
-
-# Kiểm tra xem thư mục 'ato' đã tồn tại chưa
-if [ -d "ato" ]; then
-  echo -e "${GREEN}Thư mục 'ato' đã tồn tại. Bỏ qua bước clone.${NC}"
+# Clone repository ATO từ GitHub
+if [ ! -d "ato/.git" ]; then
+  echo "Cloning repository from GitHub..."
+  git clone https://github.com/huannv-sys/ato.git ato_temp
+  # Copy nội dung sang thư mục ato
+  cp -a ato_temp/. ato/
+  rm -rf ato_temp
 else
-  # Clone repository
-  echo -e "${YELLOW}Đang clone repository...${NC}"
-  git clone https://github.com/huannv-sys/ato.git
-  
-  if [ $? -ne 0 ]; then
-    echo -e "${RED}Lỗi khi clone repository. Đang thoát...${NC}"
-    exit 1
-  fi
+  echo "Repository đã được clone trước đó. Bỏ qua bước clone."
 fi
 
 # Di chuyển vào thư mục dự án
-echo -e "${YELLOW}Di chuyển vào thư mục dự án...${NC}"
-cd ato || exit
+cd ato
 
-# Kiểm tra và tạo file .env nếu cần
+# Cài đặt dependencies với npm
+echo "Cài đặt các dependencies..."
+npm install --legacy-peer-deps
+
+# Tạo file .env nếu nó chưa tồn tại
 if [ ! -f ".env" ]; then
-  echo -e "${YELLOW}Tạo file .env...${NC}"
-  cp backup/.env .env
-  # Cập nhật DATABASE_URL với giá trị môi trường
-  echo "DATABASE_URL=$DATABASE_URL" >> .env
-  echo "PGUSER=$PGUSER" >> .env
-  echo "PGHOST=$PGHOST" >> .env
-  echo "PGPASSWORD=$PGPASSWORD" >> .env
-  echo "PGDATABASE=$PGDATABASE" >> .env
-  echo "PGPORT=$PGPORT" >> .env
-  echo -e "${GREEN}Đã tạo file .env thành công${NC}"
+  echo "Tạo file .env..."
+  echo "DATABASE_URL=\"$DATABASE_URL\"" > .env
+  echo "PORT=5000" >> .env
+  echo "HOST=0.0.0.0" >> .env
+else
+  echo "File .env đã tồn tại. Bỏ qua bước tạo file."
 fi
 
-# Cài đặt dependencies
-echo -e "${YELLOW}Đang cài đặt các gói phụ thuộc...${NC}"
-npm install
+# Đẩy schema Drizzle vào database
+echo "Đẩy schema Drizzle vào database..."
+npm run db:push
 
-if [ $? -ne 0 ]; then
-  echo -e "${RED}Lỗi khi cài đặt các gói phụ thuộc. Đang thoát...${NC}"
-  exit 1
-fi
-
-# Tạo thư mục shared/zod.ts nếu cần thiết
-if [ ! -f "shared/zod.ts" ]; then
-  echo -e "${YELLOW}Tạo file shared/zod.ts...${NC}"
-  echo "// Tệp này liên kết Zod với Drizzle để sử dụng trong schema
-import { z } from 'zod';
-
-export {
-  z
-};" > shared/zod.ts
-  echo -e "${GREEN}Đã tạo shared/zod.ts thành công${NC}"
-fi
-
-echo -e "${GREEN}Thiết lập dự án đã hoàn tất!${NC}"
-echo -e "${YELLOW}Bạn có thể chạy ứng dụng bằng lệnh:${NC}"
-echo -e "${GREEN}cd ato && HOST=0.0.0.0 PORT=5000 npm run dev${NC}"
-
-exit 0
+echo "Quá trình thiết lập hoàn tất. Bạn có thể chạy máy chủ với lệnh: cd ato && npm run dev"
