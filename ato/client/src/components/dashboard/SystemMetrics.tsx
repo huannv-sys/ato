@@ -112,7 +112,9 @@ const SystemMetrics: React.FC<SystemMetricsProps> = ({ deviceId }) => {
   // Lấy và xử lý dữ liệu từ metrics API - bổ sung hỗ trợ các trường cũ và mới
   const cpuUsage = latestMetric?.cpuLoad !== undefined ? Number(latestMetric.cpuLoad) : 
                   (latestMetric?.cpuUsage !== undefined ? Number(latestMetric.cpuUsage) : 0);
-  const cpuTemp = latestMetric?.temperature !== undefined ? Number(latestMetric.temperature) : 0;
+  // Kiểm tra nhiệt độ có giá trị hợp lệ (> 0) không
+  const hasCpuTemp = latestMetric?.temperature !== undefined && Number(latestMetric.temperature) > 0;
+  const cpuTemp = hasCpuTemp ? Number(latestMetric.temperature) : 0;
   
   // Tính toán RAM usage dựa trên memoryUsage và totalMemory
   let ramUsage = 0;
@@ -159,17 +161,24 @@ const SystemMetrics: React.FC<SystemMetricsProps> = ({ deviceId }) => {
           value={cpuUsage} 
           unit="%" 
         />
-        <GaugeChart 
-          title="CPU Temp" 
-          value={cpuTemp} 
-          unit="°C" 
-          max={100}
-          colorConfig={{
-            low: '#4CAF50',    // Green (good temp)
-            medium: '#FFC107', // Yellow (moderate temp)
-            high: '#F44336',   // Red (high temp)
-          }}
-        />
+        {hasCpuTemp ? (
+          <GaugeChart 
+            title="CPU Temp" 
+            value={cpuTemp} 
+            unit="°C" 
+            max={100}
+            colorConfig={{
+              low: '#4CAF50',    // Green (good temp)
+              medium: '#FFC107', // Yellow (moderate temp)
+              high: '#F44336',   // Red (high temp)
+            }}
+          />
+        ) : (
+          <div className="flex flex-col items-center justify-center bg-gray-800 rounded-lg p-4 text-center">
+            <span className="text-sm font-medium text-gray-400 mb-1">CPU Temp</span>
+            <span className="text-xs text-gray-500">Không có dữ liệu</span>
+          </div>
+        )}
         <GaugeChart 
           title="Load RAM" 
           value={ramUsage} 
