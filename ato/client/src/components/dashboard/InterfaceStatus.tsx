@@ -390,6 +390,7 @@ const InterfaceStatus: React.FC<InterfaceStatusProps> = ({ deviceId }) => {
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [showAllDetails, setShowAllDetails] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<"all" | "up" | "down">("all");
   const interfacesPerPage = 10; // Số interface hiển thị trên mỗi trang
   
   const { data: interfaces, isLoading } = useQuery<Interface[]>({ 
@@ -398,17 +399,30 @@ const InterfaceStatus: React.FC<InterfaceStatusProps> = ({ deviceId }) => {
     refetchInterval: 5000, // Refresh every 5 seconds
   });
   
+  // Filter interfaces by status
+  const filteredInterfaces = interfaces?.filter(iface => {
+    if (statusFilter === "all") return true;
+    if (statusFilter === "up") return iface.isUp;
+    if (statusFilter === "down") return !iface.isUp && !iface.disabled;
+    return true;
+  }) || [];
+  
+  // Reset to page 1 when filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [statusFilter]);
+  
   // Calculate pagination info
-  const totalInterfaces = interfaces?.length || 0;
+  const totalInterfaces = filteredInterfaces.length || 0;
   const totalPages = Math.ceil(totalInterfaces / interfacesPerPage);
   
   // Get current page interfaces
   const getCurrentInterfaces = () => {
-    if (!interfaces) return [];
+    if (!filteredInterfaces.length) return [];
     
     const startIndex = (currentPage - 1) * interfacesPerPage;
     const endIndex = startIndex + interfacesPerPage;
-    return interfaces.slice(startIndex, endIndex);
+    return filteredInterfaces.slice(startIndex, endIndex);
   };
   
   // Render pagination controls
@@ -469,14 +483,57 @@ const InterfaceStatus: React.FC<InterfaceStatusProps> = ({ deviceId }) => {
         </div>
         <div className="flex items-center gap-3">
           {!isLoading && interfaces && (
-            <button
-              onClick={() => setShowAllDetails(prev => !prev)}
-              className="text-xs px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-md"
-            >
-              {showAllDetails ? "Thu gọn" : "Xem chi tiết tất cả"}
-            </button>
+            <>
+              <div className="flex items-center gap-1 bg-gray-700 rounded-md p-1">
+                <button
+                  onClick={() => setStatusFilter("all")}
+                  className={`text-xs px-2 py-1 ${
+                    statusFilter === "all" 
+                      ? "bg-blue-600 text-white" 
+                      : "bg-transparent text-gray-300 hover:bg-gray-600"
+                  } rounded-md transition-colors`}
+                >
+                  Tất cả
+                </button>
+                <button
+                  onClick={() => setStatusFilter("up")}
+                  className={`text-xs px-2 py-1 ${
+                    statusFilter === "up" 
+                      ? "bg-green-600 text-white" 
+                      : "bg-transparent text-gray-300 hover:bg-gray-600"
+                  } rounded-md transition-colors`}
+                >
+                  Đang hoạt động
+                </button>
+                <button
+                  onClick={() => setStatusFilter("down")}
+                  className={`text-xs px-2 py-1 ${
+                    statusFilter === "down" 
+                      ? "bg-red-600 text-white" 
+                      : "bg-transparent text-gray-300 hover:bg-gray-600"
+                  } rounded-md transition-colors`}
+                >
+                  Không hoạt động
+                </button>
+              </div>
+              <button
+                onClick={() => setShowAllDetails(prev => !prev)}
+                className="text-xs px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-md"
+              >
+                {showAllDetails ? "Thu gọn" : "Xem chi tiết tất cả"}
+              </button>
+            </>
           )}
-          {!isLoading && interfaces && <span className="text-xs text-green-400 font-bold">{interfaces.length} interfaces</span>}
+          {!isLoading && interfaces && (
+            <span className="text-xs text-green-400 font-bold">
+              {filteredInterfaces.length} / {interfaces.length} interfaces
+              {statusFilter !== "all" && (
+                <span className="ml-1">
+                  ({statusFilter === "up" ? "Đang hoạt động" : "Không hoạt động"})
+                </span>
+              )}
+            </span>
+          )}
         </div>
       </div>
       
@@ -486,23 +543,42 @@ const InterfaceStatus: React.FC<InterfaceStatusProps> = ({ deviceId }) => {
             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500"></div>
           </div>
         ) : interfaces && interfaces.length > 0 ? (
-          <div>
-            {/* Show all interfaces in detail mode or paginate them */}
-            {showAllDetails ? (
-              // Show detailed view for current page interfaces
-              getCurrentInterfaces().map(iface => (
-                <DetailedInterfaceCard key={iface.id} iface={iface} />
-              ))
-            ) : (
-              // Show simple cards for all interfaces
-              getCurrentInterfaces().map(iface => (
-                <SimpleInterfaceCard key={iface.id} iface={iface} />
-              ))
-            )}
-            
-            {/* Pagination controls */}
-            {renderPagination()}
-          </div>
+          filteredInterfaces.length > 0 ? (
+            <div>
+              {/* Show all interfaces in detail mode or paginate them */}
+              {showAllDetails ? (
+                // Show detailed view for current page interfaces
+                getCurrentInterfaces().map(iface => (
+                  <DetailedInterfaceCard key={iface.id} iface={iface} />
+                ))
+              ) : (
+                // Show simple cards for all interfaces
+                getCurrentInterfaces().map(iface => (
+                  <SimpleInterfaceCard key={iface.id} iface={iface} />
+                ))
+              )}
+              
+              {/* Pagination controls */}
+              {renderPagination()}
+            </div>
+          ) : (
+            <div className="text-sm font-medium text-amber-500 text-center py-8 border border-dashed border-amber-300 rounded-md bg-gray-800">
+              <div className="flex flex-col items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                <div>
+                  Không tìm thấy interfaces nào phù hợp với bộ lọc "{statusFilter === "up" ? "Đang hoạt động" : "Không hoạt động"}"
+                </div>
+                <button 
+                  onClick={() => setStatusFilter("all")}
+                  className="text-xs px-2 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-md mt-2"
+                >
+                  Xem tất cả interfaces
+                </button>
+              </div>
+            </div>
+          )
         ) : (
           <div className="text-sm font-medium text-red-500 text-center py-8 border border-dashed border-red-300 rounded-md">
             Không có interfaces khả dụng
