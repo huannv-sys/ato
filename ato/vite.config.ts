@@ -32,6 +32,16 @@ export default defineConfig({
       "@tanstack/react-query": "@tanstack/react-query",
     },
   },
+  server: {
+    host: '0.0.0.0',
+    hmr: {
+      clientPort: 443,
+      protocol: 'wss'
+    },
+    watch: {
+      usePolling: true,
+    },
+  },
   root: path.resolve(__dirname, "client"),
   build: {
     outDir: path.resolve(__dirname, "dist/public"),
