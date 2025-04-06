@@ -4,6 +4,7 @@ import { storage } from "../storage";
 import { db } from "../db";
 import { networkDevices } from "@shared/schema";
 import { eq, and, lt, desc } from "drizzle-orm";
+import { mikrotikService } from ".";
 
 /**
  * Service lập lịch quét và xử lý tự động
@@ -12,9 +13,11 @@ export class SchedulerService {
   private discoveryScanInterval: NodeJS.Timeout | null = null;
   private identificationScanInterval: NodeJS.Timeout | null = null;
   private routerDiscoveryInterval: NodeJS.Timeout | null = null;
+  private metricsCollectionInterval: NodeJS.Timeout | null = null;
   private isDiscoveryRunning = false;
   private isIdentificationRunning = false;
   private isRouterDiscoveryRunning = false;
+  private isMetricsCollectionRunning = false;
   
   // Khoảng thời gian quét mặc định (5 phút)
   private discoveryScanIntervalMs = 5 * 60 * 1000;
@@ -22,6 +25,8 @@ export class SchedulerService {
   private identificationScanIntervalMs = 15 * 60 * 1000;
   // Khoảng thời gian quét router mặc định (10 phút)
   private routerDiscoveryIntervalMs = 10 * 60 * 1000;
+  // Khoảng thời gian thu thập metrics (15 giây)
+  private metricsCollectionIntervalMs = 15 * 1000;
   
   /**
    * Khởi tạo scheduler và bắt đầu các công việc
@@ -31,6 +36,7 @@ export class SchedulerService {
     this.startDiscoveryScan();
     this.startIdentificationScan();
     this.startRouterDiscovery();
+    this.startMetricsCollection();
   }
   
   /**
@@ -50,6 +56,11 @@ export class SchedulerService {
     if (this.routerDiscoveryInterval) {
       clearInterval(this.routerDiscoveryInterval);
       this.routerDiscoveryInterval = null;
+    }
+    
+    if (this.metricsCollectionInterval) {
+      clearInterval(this.metricsCollectionInterval);
+      this.metricsCollectionInterval = null;
     }
     
     console.log('Network discovery scheduler stopped');
@@ -384,8 +395,105 @@ export class SchedulerService {
         isRunning: this.isRouterDiscoveryRunning,
         interval: this.routerDiscoveryIntervalMs,
         nextScheduled: this.routerDiscoveryInterval ? 'Active' : 'Stopped'
+      },
+      metricsCollectionStatus: {
+        isRunning: this.isMetricsCollectionRunning,
+        interval: this.metricsCollectionIntervalMs,
+        nextScheduled: this.metricsCollectionInterval ? 'Active' : 'Stopped'
       }
     };
+  }
+  
+  /**
+   * Bắt đầu thu thập metrics theo lịch
+   */
+  private startMetricsCollection() {
+    if (this.metricsCollectionInterval) {
+      clearInterval(this.metricsCollectionInterval);
+    }
+    
+    // Chạy ngay lần đầu
+    this.collectRealTimeMetrics();
+    
+    // Sau đó lập lịch theo khoảng thời gian
+    this.metricsCollectionInterval = setInterval(() => {
+      this.collectRealTimeMetrics();
+    }, this.metricsCollectionIntervalMs);
+    
+    console.log(`Metrics collection scheduled every ${this.metricsCollectionIntervalMs / 1000} seconds`);
+  }
+  
+  /**
+   * Thu thập metrics thời gian thực từ các thiết bị và phát sóng qua WebSocket
+   */
+  private async collectRealTimeMetrics() {
+    if (this.isMetricsCollectionRunning) return;
+    
+    this.isMetricsCollectionRunning = true;
+    
+    try {
+      // Lấy tất cả thiết bị đang online
+      const devices = await storage.getAllDevices();
+      const onlineDevices = devices.filter(device => device.isOnline);
+      
+      for (const device of onlineDevices) {
+        try {
+          // Thu thập metrics từ thiết bị
+          const metrics = await mikrotikService.collectDeviceMetrics(device.id);
+          
+          // Lấy thông tin giao diện
+          const interfaces = await storage.getInterfaces(device.id);
+          
+          // Nếu thu thập thành công, phát sóng qua WebSocket
+          if (metrics) {
+            // Topic dành riêng cho thiết bị cụ thể
+            const deviceTopic = `device_metrics_${device.id}`;
+            
+            // Tạo đối tượng dữ liệu để phát sóng
+            const data = {
+              type: 'metrics_update',
+              deviceId: device.id,
+              timestamp: new Date().toISOString(),
+              metrics: metrics,
+              interfaces: interfaces
+            };
+            
+            // Phát sóng metrics tới các clients đã đăng ký
+            if ((global as any).broadcastToTopic) {
+              (global as any).broadcastToTopic(deviceTopic, {
+                type: 'metrics_update',
+                payload: data
+              });
+              
+              // Đồng thời phát sóng cho topic tổng quan
+              (global as any).broadcastToTopic('all_devices_metrics', {
+                type: 'metrics_update',
+                payload: data
+              });
+            }
+          }
+        } catch (error) {
+          console.error(`Error collecting metrics for device ${device.id}:`, error);
+        }
+      }
+    } catch (error) {
+      console.error('Error during metrics collection:', error);
+    } finally {
+      this.isMetricsCollectionRunning = false;
+    }
+  }
+  
+  /**
+   * Cập nhật khoảng thời gian thu thập metrics
+   * @param intervalSeconds Khoảng thời gian (giây)
+   */
+  public setMetricsCollectionInterval(intervalSeconds: number) {
+    if (intervalSeconds < 5) intervalSeconds = 5; // Tối thiểu 5 giây
+    
+    this.metricsCollectionIntervalMs = intervalSeconds * 1000;
+    this.startMetricsCollection();
+    
+    return intervalSeconds;
   }
 }
 

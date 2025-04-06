@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Metric } from "@shared/schema";
 import { 
@@ -11,6 +11,7 @@ import {
   ResponsiveContainer,
   Legend
 } from "recharts";
+import { useWebSocketContext } from "../../lib/websocket-context";
 
 interface CPUMemoryChartProps {
   deviceId: number | null;
@@ -18,14 +19,92 @@ interface CPUMemoryChartProps {
 
 type TimeRange = "1H" | "24H" | "7D";
 
+interface ChartDataPoint {
+  timestamp: string;
+  cpuUsage: number;
+  memoryUsage: number;
+}
+
 const CPUMemoryChart: React.FC<CPUMemoryChartProps> = ({ deviceId }) => {
   const [timeRange, setTimeRange] = useState<TimeRange>("1H");
+  const [realTimeData, setRealTimeData] = useState<ChartDataPoint[]>([]);
   
-  // Fetch metrics data
+  // WebSocket
+  const { subscribe, unsubscribe } = useWebSocketContext();
+  
+  // Fetch initial metrics data
   const { data: metrics, isLoading } = useQuery<Metric[]>({ 
     queryKey: deviceId ? [`/api/devices/${deviceId}/metrics`] : ['/api/devices/metrics/none'],
     enabled: !!deviceId,
   });
+  
+  // Hàm để thêm dữ liệu thời gian thực mới
+  const addRealTimeDataPoint = useCallback((metric: Metric) => {
+    setRealTimeData(prevData => {
+      // Tạo điểm dữ liệu mới
+      const newDataPoint = {
+        timestamp: new Date(metric.timestamp).toLocaleTimeString(),
+        cpuUsage: metric.cpuUsage || 0,
+        memoryUsage: metric.totalMemory ? (metric.memoryUsage || 0) / metric.totalMemory * 100 : 0
+      };
+      
+      // Giới hạn số lượng điểm
+      const maxPoints = timeRange === "1H" ? 60 : timeRange === "24H" ? 24 : 7;
+      const newData = [...prevData, newDataPoint];
+      
+      // Giữ lại chỉ maxPoints điểm dữ liệu gần nhất
+      if (newData.length > maxPoints) {
+        return newData.slice(newData.length - maxPoints);
+      }
+      
+      return newData;
+    });
+  }, [timeRange]);
+  
+  // Đăng ký nhận cập nhật WebSocket
+  useEffect(() => {
+    if (deviceId) {
+      // Đăng ký nhận cập nhật từ thiết bị cụ thể
+      const deviceTopic = `device_metrics_${deviceId}`;
+      
+      // Xử lý dữ liệu khi nhận được
+      const handleMetricsUpdate = (data: any) => {
+        console.log("Nhận được metrics qua WebSocket:", data);
+        if (data && data.metrics) {
+          addRealTimeDataPoint(data.metrics);
+        }
+      };
+      
+      // Đăng ký nhận cập nhật
+      const unsubscribeDevice = subscribe(deviceTopic, handleMetricsUpdate);
+      const unsubscribeAll = subscribe('all_devices_metrics', (data: any) => {
+        if (data && data.deviceId === deviceId && data.metrics) {
+          handleMetricsUpdate(data);
+        }
+      });
+      
+      // Hủy đăng ký khi component unmount
+      return () => {
+        unsubscribeDevice();
+        unsubscribeAll();
+        unsubscribe(deviceTopic);
+        unsubscribe('all_devices_metrics');
+      };
+    }
+  }, [deviceId, subscribe, unsubscribe, addRealTimeDataPoint]);
+  
+  // Reset dữ liệu thời gian thực khi thay đổi thiết bị hoặc khoảng thời gian
+  useEffect(() => {
+    setRealTimeData([]);
+  }, [deviceId, timeRange]);
+  
+  // Khởi tạo dữ liệu thời gian thực từ metrics
+  useEffect(() => {
+    if (metrics && metrics.length > 0) {
+      const formattedData = formatChartData(metrics);
+      setRealTimeData(formattedData);
+    }
+  }, [metrics]);
   
   const formatChartData = (metrics: Metric[] | undefined) => {
     if (!metrics) return [];
@@ -55,7 +134,8 @@ const CPUMemoryChart: React.FC<CPUMemoryChartProps> = ({ deviceId }) => {
     }));
   };
   
-  const chartData = formatChartData(metrics);
+  // Kết hợp dữ liệu từ API và dữ liệu thời gian thực
+  const chartData = realTimeData.length > 0 ? realTimeData : formatChartData(metrics);
   
   return (
     <div className="bg-slate-800 rounded-lg p-4 border border-slate-600">
