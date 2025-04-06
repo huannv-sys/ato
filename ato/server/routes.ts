@@ -3,7 +3,6 @@ import { WebSocketServer } from "ws";
 import { db } from "./db.js";
 import { sql } from "drizzle-orm";
 import { schedulerService } from "./services/index.js";
-import { trafficAnalyzer } from "./services/traffic-analyzer/index.js";
 
 /**
  * Đăng ký các API route và thiết lập WebSocket
@@ -91,25 +90,7 @@ export async function registerRoutes(app: any): Promise<http.Server> {
     }
   });
 
-  // API lấy dữ liệu traffic analyzer
-  app.get("/api/traffic/top", async function(req: any, res: any) {
-    try {
-      const limit = parseInt(req.query.limit || "10");
-      const topTalkers = trafficAnalyzer.getTopTalkers(limit);
-      
-      res.json({
-        status: "ok",
-        data: topTalkers
-      });
-    } catch (error: any) {
-      console.error("Error getting top talkers:", error);
-      res.status(500).json({
-        status: "error",
-        message: "Lỗi khi lấy dữ liệu top talkers",
-        error: error?.message || String(error)
-      });
-    }
-  });
+  // API endpoints khác sẽ được thêm sau khi triển khai các service tương ứng
 
   // API lấy trạng thái scheduler
   app.get("/api/scheduler/status", async function(req: any, res: any) {

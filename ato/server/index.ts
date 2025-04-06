@@ -4,7 +4,7 @@ import express from "express";
 import dotenv from "dotenv";
 import { registerRoutes } from "./routes.js";
 import { schedulerService } from "./services/index.js";
-import { trafficAnalyzer } from "./services/traffic-analyzer/index.js";
+import { createViteDevMiddleware, createViteFallbackMiddleware } from "./vite.js";
 
 // Load các biến môi trường
 dotenv.config();
@@ -28,10 +28,19 @@ async function startServer() {
   try {
     // Khởi tạo các dịch vụ
     schedulerService.initialize();
-    trafficAnalyzer.initialize();
     
-    // Đăng ký các route
+    // Thiết lập Vite middleware cho phát triển front-end
+    const isDevelopment = process.env.NODE_ENV !== "production";
+    if (isDevelopment) {
+      console.log("Đang chạy trong môi trường phát triển, thiết lập Vite middleware");
+      await createViteDevMiddleware(app);
+    }
+    
+    // Đăng ký các route API
     const server = await registerRoutes(app);
+    
+    // Fallback middleware cho Vite (đặt sau route API)
+    createViteFallbackMiddleware(app);
     
     // Khởi động máy chủ
     server.listen(PORT, HOST as any, () => {
