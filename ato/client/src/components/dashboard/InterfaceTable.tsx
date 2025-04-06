@@ -93,6 +93,31 @@ const InterfaceTable: React.FC<InterfaceTableProps> = ({ deviceId }) => {
       return [];
     }
     
+    // Xử lý ưu tiên hiển thị giao diện PPPoE
+    const pppoePriority = ifaces.filter(iface => 
+      iface.name && (iface.name.toLowerCase().includes('pppoe') || iface.name.toLowerCase().includes('ppp-') || iface.name.toLowerCase().includes('l2tp'))
+    );
+    
+    // Nếu có kết nối PPPoE, chỉ hiển thị chúng
+    if (pppoePriority.length > 0) {
+      console.log('Đã tìm thấy kết nối PPPoE/L2TP: ', pppoePriority.map(i => i.name).join(', '));
+      return pppoePriority.map(iface => {
+        return {
+          id: iface.id,
+          name: iface.name,
+          type: 'PPPoE/L2TP',  // Hiển thị loại kết nối rõ ràng
+          status: iface.isUp ? 'up' : 'down',
+          macAddress: iface.macAddress,
+          speed: iface.speed || (iface.isUp ? '100Mbps' : null),
+          rxBytes: iface.rxBytes,
+          txBytes: iface.txBytes,
+          comment: iface.comment || 'Kết nối Internet',
+          disabled: iface.disabled || false
+        };
+      });
+    }
+    
+    // Nếu không có kết nối PPPoE, quay về hiển thị mặc định
     return ifaces.map(iface => {
       // Kiểm tra đặc biệt cho CAP interfaces
       const isCAPInterface = 
@@ -131,9 +156,9 @@ const InterfaceTable: React.FC<InterfaceTableProps> = ({ deviceId }) => {
   return (
     <div className="bg-slate-900 rounded-lg shadow-md border border-slate-700 w-full">
       <div className="px-4 py-3 border-b border-slate-700 bg-slate-800 flex items-center justify-between">
-        <h3 className="font-medium text-white text-lg">Network Interfaces</h3>
+        <h3 className="font-medium text-white text-lg">PPPoE Connections</h3>
         <div className="flex items-center">
-          <span className="text-xs text-slate-400">{displayInterfaces.length} interfaces</span>
+          <span className="text-xs text-slate-400">{displayInterfaces.length} connections</span>
           <span className="inline-flex h-2 w-2 rounded-full bg-green-500 ml-2"></span>
         </div>
       </div>
@@ -196,7 +221,7 @@ const InterfaceTable: React.FC<InterfaceTableProps> = ({ deviceId }) => {
             ) : (
               <tr>
                 <td colSpan={10} className="text-center p-4 text-slate-400">
-                  Không có interfaces nào được tìm thấy
+                  Không tìm thấy kết nối PPPoE/L2TP nào
                 </td>
               </tr>
             )}

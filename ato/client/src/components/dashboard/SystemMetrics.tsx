@@ -161,24 +161,17 @@ const SystemMetrics: React.FC<SystemMetricsProps> = ({ deviceId }) => {
           value={cpuUsage} 
           unit="%" 
         />
-        {hasCpuTemp ? (
-          <GaugeChart 
-            title="CPU Temp" 
-            value={cpuTemp} 
-            unit="°C" 
-            max={100}
-            colorConfig={{
-              low: '#4CAF50',    // Green (good temp)
-              medium: '#FFC107', // Yellow (moderate temp)
-              high: '#F44336',   // Red (high temp)
-            }}
-          />
-        ) : (
-          <div className="flex flex-col items-center justify-center bg-gray-800 rounded-lg p-4 text-center">
-            <span className="text-sm font-medium text-gray-400 mb-1">CPU Temp</span>
-            <span className="text-xs text-gray-500">Không có dữ liệu</span>
-          </div>
-        )}
+        <GaugeChart 
+          title="CPU Temp" 
+          value={cpuTemp} 
+          unit="°C" 
+          max={100}
+          colorConfig={{
+            low: '#4CAF50',    // Green (good temp)
+            medium: '#FFC107', // Yellow (moderate temp)
+            high: '#F44336',   // Red (high temp)
+          }}
+        />
         <GaugeChart 
           title="Load RAM" 
           value={ramUsage} 
