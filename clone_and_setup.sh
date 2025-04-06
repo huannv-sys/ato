@@ -1,29 +1,22 @@
 #!/bin/bash
-
-# Set error handling
 set -e
 
-echo "Cloning ATO repository from GitHub..."
-if [ ! -d "ato" ]; then
-  git clone https://github.com/huannv-sys/ato.git
-  echo "Repository cloned successfully."
-else
-  echo "Repository already exists."
+echo "=== Cloning ATO Repository ==="
+# Xóa thư mục cũ nếu tồn tại
+if [ -d "ato" ]; then
+  echo "Removing existing ato directory..."
+  rm -rf ato
 fi
 
-echo "Changing to repository directory..."
+# Clone repository
+echo "Cloning from GitHub..."
+git clone https://github.com/huannv-sys/ato.git
 cd ato
 
-echo "Creating .env file with database connection..."
-cat > .env << EOF
-VOVI_API_URL=http://api.vovi.example.com/api
-VOVI_API_KEY=your_api_key_here
-DATABASE_URL=${DATABASE_URL}
-PORT=5000
-EOF
+# Backup and fix .env file
+echo "Setting up environment variables..."
+echo "DATABASE_URL=${DATABASE_URL}" > .env
+cat .env
 
-echo "Creating migrations directory..."
-mkdir -p migrations
-
-echo "Setup complete. Dependencies will be installed by the main workflow."
-
+echo "=== Setup Completed Successfully ==="
+echo "You can now start the simplified server with 'Simple ATO Server' workflow."
