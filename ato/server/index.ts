@@ -2,9 +2,9 @@
 
 import express from "express";
 import dotenv from "dotenv";
-import { registerRoutes } from "./routes";
-import { schedulerService } from "./services";
-import { log, setupVite, serveStatic } from "./vite";
+import { registerRoutes } from "./routes.js";
+import { schedulerService } from "./services/index.js";
+import { trafficAnalyzer } from "./services/traffic-analyzer/index.js";
 
 // Load các biến môi trường
 dotenv.config();
@@ -19,30 +19,23 @@ const HOST = process.env.HOST || "localhost";
 
 // Middleware để ghi log các yêu cầu
 app.use((req: any, res: any, next: any) => {
-  log(`${req.method} ${req.url}`);
+  console.log(`${req.method} ${req.url}`);
   next();
 });
 
 // Khởi động máy chủ
 async function startServer() {
   try {
-    // Khởi tạo scheduler
+    // Khởi tạo các dịch vụ
     schedulerService.initialize();
+    trafficAnalyzer.initialize();
     
     // Đăng ký các route
     const server = await registerRoutes(app);
     
-    // Thiết lập Vite hoặc phục vụ các tệp tĩnh
-    const isDev = process.env.NODE_ENV !== "production";
-    if (isDev) {
-      await setupVite(app, server);
-    } else {
-      serveStatic(app);
-    }
-    
     // Khởi động máy chủ
     server.listen(PORT, HOST as any, () => {
-      log(`Máy chủ đang chạy tại http://${HOST}:${PORT}`);
+      console.log(`Máy chủ đang chạy tại http://${HOST}:${PORT}`);
     });
     
     // Xử lý lỗi không mong muốn
