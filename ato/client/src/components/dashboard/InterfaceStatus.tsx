@@ -201,14 +201,18 @@ const DetailedInterfaceCard = ({ iface }: { iface: Interface }) => {
         <div className="bg-slate-800 rounded p-2">
           <div className="flex justify-between items-center mb-1">
             <span className="text-xs text-slate-400">Tx/Rx Bytes:</span>
-            <span className="text-xs text-white font-medium">{formatBytes(trafficStats.totalTxBytes)} / {formatBytes(trafficStats.totalRxBytes)}</span>
+            <span className="text-xs text-white font-medium">
+              {`${formatBytes(trafficStats.totalTxBytes)} / ${formatBytes(trafficStats.totalRxBytes)}`}
+            </span>
           </div>
         </div>
         
         <div className="bg-slate-800 rounded p-2">
           <div className="flex justify-between items-center mb-1">
             <span className="text-xs text-slate-400">Tx/Rx Packets:</span>
-            <span className="text-xs text-white font-medium">{trafficStats.totalTxPackets.toLocaleString()} / {trafficStats.totalRxPackets.toLocaleString()}</span>
+            <span className="text-xs text-white font-medium">
+              {`${trafficStats.totalTxPackets.toLocaleString()} / ${trafficStats.totalRxPackets.toLocaleString()}`}
+            </span>
           </div>
         </div>
       </div>
@@ -218,14 +222,20 @@ const DetailedInterfaceCard = ({ iface }: { iface: Interface }) => {
         <div className="bg-slate-800 rounded p-2">
           <div className="flex justify-between items-center mb-1">
             <span className="text-xs text-slate-400">Tx/Rx Drops:</span>
-            <span className="text-xs text-white font-medium">{trafficStats.txDrops} / {trafficStats.rxDrops}</span>
+            <span className="text-xs text-white font-medium">
+              {iface.isUp 
+                ? `${trafficStats.txDrops} / ${trafficStats.rxDrops}`
+                : '0 / 0'}
+            </span>
           </div>
         </div>
         
         <div className="bg-slate-800 rounded p-2">
           <div className="flex justify-between items-center mb-1">
             <span className="text-xs text-slate-400">Tx Queue Drops:</span>
-            <span className="text-xs text-white font-medium">{trafficStats.txQueueDrops}</span>
+            <span className="text-xs text-white font-medium">
+              {iface.isUp ? trafficStats.txQueueDrops : '0'}
+            </span>
           </div>
         </div>
       </div>
@@ -234,7 +244,11 @@ const DetailedInterfaceCard = ({ iface }: { iface: Interface }) => {
         <div className="bg-slate-800 rounded p-2">
           <div className="flex justify-between items-center mb-1">
             <span className="text-xs text-slate-400">Tx/Rx Errors:</span>
-            <span className="text-xs text-white font-medium">{trafficStats.txErrors} / {trafficStats.rxErrors}</span>
+            <span className="text-xs text-white font-medium">
+              {iface.isUp 
+                ? `${trafficStats.txErrors} / ${trafficStats.rxErrors}`
+                : '0 / 0'}
+            </span>
           </div>
         </div>
       </div>
