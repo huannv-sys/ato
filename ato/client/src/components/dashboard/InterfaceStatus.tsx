@@ -140,17 +140,17 @@ const DetailedInterfaceCard = ({ iface }: { iface: Interface }) => {
   
   // Render the interface card
   return (
-    <div className={`mb-4 border rounded-lg p-3 ${iface.isUp ? 'border-blue-500 bg-slate-900' : 'border-red-500 bg-slate-900'}`}>
+    <div className={`mb-4 border rounded-lg p-3 ${iface.isUp ? 'border-blue-500 bg-slate-900' : (iface.disabled ? 'border-gray-500 bg-slate-900' : 'border-red-500 bg-slate-900')}`}>
       {/* Interface header with name and status */}
       <div className="flex items-center justify-between mb-4 border-b border-slate-700 pb-2">
         <div className="flex items-center">
-          <div className={`w-3 h-3 rounded-full ${iface.isUp ? 'bg-green-500' : 'bg-red-500'} mr-2 animate-pulse`}></div>
+          <div className={`w-3 h-3 rounded-full ${iface.isUp ? 'bg-green-500' : (iface.disabled ? 'bg-gray-500' : 'bg-red-500')} mr-2 animate-pulse`}></div>
           <span className="font-bold text-sm text-white">
             {iface.name || 'Unknown Interface'} {iface.type && <span className="text-xs font-semibold text-slate-400">({iface.type})</span>}
           </span>
         </div>
-        <span className={`text-xs font-bold px-2 py-1 rounded-md ${iface.isUp ? 'bg-blue-600' : 'bg-red-600'} text-white`}>
-          {iface.isUp ? iface.speed || '1Gbps' : 'Disconnected'}
+        <span className={`text-xs font-bold px-2 py-1 rounded-md ${iface.isUp ? 'bg-blue-600' : (iface.disabled ? 'bg-gray-600' : 'bg-red-600')} text-white`}>
+          {iface.isUp ? iface.speed || '1Gbps' : (iface.disabled ? 'Disabled' : 'Down')}
         </span>
       </div>
       
@@ -320,16 +320,16 @@ const DetailedInterfaceCard = ({ iface }: { iface: Interface }) => {
 // Simple card for collapsed view
 const SimpleInterfaceCard = ({ iface }: { iface: Interface }) => {
   return (
-    <div className={`mb-3 border rounded-md p-2 ${iface.isUp ? 'border-green-500 bg-gray-800' : 'border-red-500 bg-gray-800'}`}>
+    <div className={`mb-3 border rounded-md p-2 ${iface.isUp ? 'border-green-500 bg-gray-800' : (iface.disabled ? 'border-gray-500 bg-gray-800' : 'border-red-500 bg-gray-800')}`}>
       <div className="flex justify-between items-center">
         <div className="flex items-center">
-          <div className={`w-3 h-3 rounded-full ${iface.isUp ? 'bg-green-500' : 'bg-red-500'} mr-2 animate-pulse`}></div>
+          <div className={`w-3 h-3 rounded-full ${iface.isUp ? 'bg-green-500' : (iface.disabled ? 'bg-gray-500' : 'bg-red-500')} mr-2 animate-pulse`}></div>
           <span className="font-bold text-sm text-white">
             {iface.name || 'Unknown Interface'} {iface.type && <span className="text-xs font-semibold text-gray-300">({iface.type})</span>}
           </span>
         </div>
-        <span className={`text-xs font-bold px-2 py-0.5 rounded-md ${iface.isUp ? 'bg-blue-600 text-white' : 'bg-red-600 text-white'}`}>
-          {iface.isUp ? iface.speed || '1Gbps' : 'Disconnected'}
+        <span className={`text-xs font-bold px-2 py-0.5 rounded-md ${iface.isUp ? 'bg-blue-600 text-white' : (iface.disabled ? 'bg-gray-600 text-white' : 'bg-red-600 text-white')}`}>
+          {iface.isUp ? iface.speed || '1Gbps' : (iface.disabled ? 'Disabled' : 'Down')}
         </span>
       </div>
       

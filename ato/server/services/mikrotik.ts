@@ -689,9 +689,10 @@ export class MikrotikService {
               (type === 'cap' || type === 'CAP') || 
               (iface.name && (iface.name.toLowerCase().includes('cap') || iface.name.toLowerCase().includes('wlan')));
             
-            if (isCAPInterface && !isDisabled) {
-              isRunning = true; // Đánh dấu luôn là đang chạy nếu là CAP interface và không bị vô hiệu hóa
-              console.log(`CAP interface ${iface.name} đặt thành running khi tính bandwidth tổng`);
+            // Không tự động đánh dấu CAP interfaces là đang chạy
+            // Chỉ ghi log để theo dõi trạng thái thực tế
+            if (isCAPInterface) {
+              console.log(`CAP interface ${iface.name} - running state: ${isRunning}, disabled: ${isDisabled}`);
             }
             
             if (isRunning && !isDisabled && type !== 'bridge') {
@@ -958,14 +959,15 @@ export class MikrotikService {
         const isDisabled = iface.disabled === 'true' || iface.disabled === true;
         
         // Xử lý đặc biệt cho interface CAP (CAPsMAN Access Point)
-        // Các interface CAP vẫn đang hoạt động kể cả khi không có thiết bị kết nối
+        // Kiểm tra nếu là CAP interface, nhưng chỉ đánh dấu đang chạy nếu thực sự đang chạy
         const isCAPInterface = 
           (iface.type === 'cap' || iface.type === 'CAP') || 
           (iface.name && (iface.name.toLowerCase().includes('cap') || iface.name.toLowerCase().includes('wlan')));
         
-        if (isCAPInterface && !isDisabled) {
-          isRunning = true; // Đánh dấu luôn là đang chạy nếu là CAP interface và không bị vô hiệu hóa
-          console.log(`CAP interface ${iface.name} is marked as running regardless of connection status`);
+        // Kiểm tra giá trị running và chỉ đặt là true khi nó thực sự đang chạy
+        // Không tự động đánh dấu CAP interfaces đang chạy nếu chúng không chạy
+        if (isCAPInterface) {
+          console.log(`CAP interface ${iface.name} - actual running status: ${isRunning}`);
         }
         
         if (existingInterface) {
