@@ -17,6 +17,24 @@ import { ArpEntry, DhcpLease } from '../mikrotik-api-types';
 import * as RouterOS from 'node-routeros';
 import { networkDevices } from '@shared/schema';
 
+// Định nghĩa kiểu dữ liệu cho kết nối PPP
+export interface PPPConnection {
+  name: string;
+  type: 'pppoe' | 'l2tp' | 'pptp';
+  user?: string;
+  uptime?: string;
+  activeAddress?: string;
+  service?: string;
+  status?: string;
+  running?: boolean;
+  disabled?: boolean;
+  comment?: string;
+  macAddress?: string;
+  txByte?: number;
+  rxByte?: number;
+  mtu?: number;
+}
+
 /**
  * Interface định nghĩa tham số kết nối
  */
@@ -262,6 +280,67 @@ export class MikrotikService {
    */
   getClientForDevice(deviceId: number): MikrotikClient | undefined {
     return this.clients.get(deviceId);
+  }
+  
+  /**
+   * Lấy danh sách kết nối PPPoE và L2TP từ thiết bị
+   * @param deviceId ID của thiết bị Mikrotik 
+   * @returns Danh sách kết nối PPP và L2TP
+   */
+  async getLTPPConnections(deviceId: number): Promise<PPPConnection[]> {
+    try {
+      const client = await this.getClient(deviceId);
+      
+      // Lấy dữ liệu kết nối PPPoE với thông tin chi tiết hơn
+      const pppoeSessions = await client.executeCommand('/interface/pppoe-client/print', [
+        { '.proplist': 'name,uptime,user,service-name,ac-name,mtu,status,running,disabled,comment,mac-address,tx-byte,rx-byte' },
+      ]);
+      
+      // Lấy dữ liệu L2TP với thông tin chi tiết hơn
+      const l2tpConns = await client.executeCommand('/interface/l2tp-server/print', [
+        { '.proplist': 'name,uptime,user,active-address,l2mtu,comment,running,disabled,mac-address,tx-byte,rx-byte' },
+      ]);
+      
+      // Kết hợp dữ liệu và thêm các thông tin cần thiết
+      const allConnections: PPPConnection[] = [
+        ...(Array.isArray(pppoeSessions) ? pppoeSessions.map(session => ({
+          name: session.name,
+          type: 'pppoe' as const,
+          user: session.user,
+          uptime: session.uptime,
+          activeAddress: session['ac-name'] || null,
+          service: session['service-name'],
+          status: session.status,
+          running: session.running,
+          disabled: session.disabled,
+          comment: session.comment || `Kết nối PPPoE: ${session.user || 'Unknown'}`,
+          macAddress: session['mac-address'],
+          txByte: session['tx-byte'],
+          rxByte: session['rx-byte'],
+          mtu: session.mtu
+        })) : []), 
+        ...(Array.isArray(l2tpConns) ? l2tpConns.map(conn => ({
+          name: conn.name,
+          type: 'l2tp' as const,
+          user: conn.user,
+          uptime: conn.uptime,
+          activeAddress: conn['active-address'],
+          status: null,
+          running: conn.running,
+          disabled: conn.disabled,
+          comment: conn.comment || `Kết nối L2TP VPN: ${conn.user || conn['active-address'] || 'Unknown'}`,
+          macAddress: conn['mac-address'],
+          txByte: conn['tx-byte'],
+          rxByte: conn['rx-byte'],
+          mtu: conn.l2mtu
+        })) : [])
+      ];
+      
+      return allConnections;
+    } catch (error) {
+      console.error(`Error getting PPPOE/L2TP connections for device ${deviceId}:`, error);
+      return [];
+    }
   }
   
   /**

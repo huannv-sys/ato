@@ -244,6 +244,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
+      // Thử lấy thêm thông tin kết nối PPPoE/L2TP nếu có yêu cầu
+      if (req.query.includePPPConnections === 'true') {
+        try {
+          const pppConnections = await mikrotikService.getLTPPConnections(deviceId);
+          if (pppConnections && pppConnections.length > 0) {
+            // Gửi thông tin PPP kèm theo interfaces
+            return res.json({
+              interfaces,
+              pppConnections
+            });
+          }
+        } catch (pppError) {
+          console.warn(`Could not fetch PPP connections: ${pppError}`);
+          // Vẫn trả về interfaces nếu không lấy được kết nối PPP
+        }
+      }
+      
       res.json(interfaces);
     } catch (error) {
       console.error("Error fetching interfaces:", error);

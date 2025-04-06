@@ -28,14 +28,53 @@ interface InterfaceData {
   txBytes: number | null;
   comment: string | null;
   disabled: boolean;
+  user?: string;
+  uptime?: string;
+  activeAddress?: string;
+}
+
+interface PPPConnectionData {
+  '.id': string;
+  name: string;
+  type: string;
+  user?: string;
+  uptime?: string;
+  activeAddress?: string;
+  service?: string;
+  status?: string;
+  running?: boolean;
+  disabled?: boolean;
+  comment?: string;
+  macAddress?: string;
+  txByte?: number;
+  rxByte?: number;
+  mtu?: number;
 }
 
 const InterfaceTable: React.FC<InterfaceTableProps> = ({ deviceId }) => {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   
-  const { data: interfaces, isLoading } = useQuery<Interface[]>({
+  const { data: interfaceData, isLoading } = useQuery({
     queryKey: deviceId ? ['/api/devices', deviceId, 'interfaces'] : ['empty'],
+    queryFn: async () => {
+      if (!deviceId) return { interfaces: [], pppConnections: [] };
+      
+      // Thêm param để yêu cầu lấy thông tin PPP/L2TP
+      const response = await fetch(`/api/devices/${deviceId}/interfaces?includePPPConnections=true`);
+      const data = await response.json();
+      
+      // Kiểm tra xem response có phải là object với interfaces và pppConnections không
+      if (data && typeof data === 'object' && 'interfaces' in data && 'pppConnections' in data) {
+        return data;
+      }
+      
+      // Nếu không có cấu trúc mới, trả về dữ liệu theo định dạng cũ
+      return { 
+        interfaces: Array.isArray(data) ? data : [],
+        pppConnections: [] 
+      };
+    },
     enabled: !!deviceId,
     refetchInterval: 30000, // Refresh every 30 seconds
   });
@@ -104,14 +143,14 @@ const InterfaceTable: React.FC<InterfaceTableProps> = ({ deviceId }) => {
       return pppoePriority.map(iface => {
         return {
           id: iface.id,
-          name: iface.name,
-          type: 'PPPoE/L2TP',  // Hiển thị loại kết nối rõ ràng
+          name: iface.name || `Kết nối #${iface.id}`,
+          type: iface.name?.toLowerCase().includes('l2tp') ? 'L2TP VPN' : 'PPPoE',
           status: iface.isUp ? 'up' : 'down',
-          macAddress: iface.macAddress,
+          macAddress: iface.macAddress || 'dynamic',
           speed: iface.speed || (iface.isUp ? '100Mbps' : null),
           rxBytes: iface.rxBytes,
           txBytes: iface.txBytes,
-          comment: iface.comment || 'Kết nối Internet',
+          comment: iface.comment || (iface.name?.toLowerCase().includes('l2tp') ? 'Kết nối VPN' : 'Kết nối Internet'),
           disabled: iface.disabled || false
         };
       });
@@ -142,8 +181,46 @@ const InterfaceTable: React.FC<InterfaceTableProps> = ({ deviceId }) => {
     });
   };
 
+  // Phân tích dữ liệu PPP connections nếu có
+  const formatPPPConnectionData = (pppConns: PPPConnectionData[] | undefined): InterfaceData[] => {
+    if (!pppConns || !Array.isArray(pppConns) || pppConns.length === 0) {
+      return [];
+    }
+    
+    return pppConns.map((conn, index) => {
+      const isL2tp = conn.type === 'l2tp';
+      return {
+        id: index + 1000, // ID cho các kết nối PPP - đặt giá trị lớn để tránh xung đột với interfaces thường
+        name: conn.name || `${conn.type}-${index}`,
+        type: isL2tp ? 'L2TP VPN' : 'PPPoE',
+        status: conn.running ? 'up' : 'down',
+        macAddress: conn.macAddress || 'dynamic',
+        speed: '100Mbps', // Giá trị mặc định cho kết nối PPP
+        rxBytes: conn.rxByte || 0,
+        txBytes: conn.txByte || 0,
+        comment: conn.comment || `Kết nối ${isL2tp ? 'VPN' : 'Internet'}: ${conn.user || 'Unknown'}`,
+        disabled: conn.disabled || false,
+        user: conn.user,
+        uptime: conn.uptime,
+        activeAddress: conn.activeAddress
+      };
+    });
+  };
+
   // Get real interface data
-  const displayInterfaces = formatInterfaceData(interfaces);
+  const interfaces = interfaceData?.interfaces || [];
+  const pppConnections = interfaceData?.pppConnections || [];
+  
+  // Ưu tiên dữ liệu PPP connections nếu có
+  let displayInterfaces: InterfaceData[] = [];
+  
+  if (pppConnections.length > 0) {
+    console.log('Đã tìm thấy kết nối PPPoE/L2TP từ API:', pppConnections.length);
+    displayInterfaces = formatPPPConnectionData(pppConnections);
+  } else {
+    // Nếu không có PPP connections từ API, sử dụng cách phát hiện cũ
+    displayInterfaces = formatInterfaceData(interfaces);
+  }
 
   // Format bytes to readable format
   const formatBytes = (bytes: number) => {

@@ -63,6 +63,9 @@ export interface MikrotikInterface {
   lastLinkUpTime?: string;
   linkDowns?: number;
   speed?: string;
+  user?: string;
+  uptime?: string;
+  activeAddress?: string;
 }
 
 // Thiết bị mạng được phát hiện thông qua MikroTik API
