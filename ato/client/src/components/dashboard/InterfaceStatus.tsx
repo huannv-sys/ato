@@ -159,14 +159,22 @@ const DetailedInterfaceCard = ({ iface }: { iface: Interface }) => {
         <div className="bg-slate-800 rounded p-2">
           <div className="flex justify-between items-center mb-1">
             <span className="text-xs text-slate-400">Tx/Rx Rate:</span>
-            <span className="text-xs text-white font-medium">{formatBitsPerSecond(trafficStats.txRate)} / {formatBitsPerSecond(trafficStats.rxRate)}</span>
+            <span className="text-xs text-white font-medium">
+              {iface.isUp 
+                ? `${formatBitsPerSecond(trafficStats.txRate)} / ${formatBitsPerSecond(trafficStats.rxRate)}`
+                : '0 bps / 0 bps'}
+            </span>
           </div>
         </div>
         
         <div className="bg-slate-800 rounded p-2">
           <div className="flex justify-between items-center mb-1">
             <span className="text-xs text-slate-400">Tx/Rx Packet Rate:</span>
-            <span className="text-xs text-white font-medium">{trafficStats.txPacketRate.toFixed(0)} p/s / {trafficStats.rxPacketRate.toFixed(0)} p/s</span>
+            <span className="text-xs text-white font-medium">
+              {iface.isUp 
+                ? `${trafficStats.txPacketRate.toFixed(0)} p/s / ${trafficStats.rxPacketRate.toFixed(0)} p/s`
+                : '0 p/s / 0 p/s'}
+            </span>
           </div>
         </div>
       </div>
@@ -237,11 +245,15 @@ const DetailedInterfaceCard = ({ iface }: { iface: Interface }) => {
           <div className="flex items-center gap-2 mb-2">
             <div className="flex items-center">
               <div className="w-2 h-2 bg-blue-500 rounded-full mr-1"></div>
-              <span className="text-xs text-slate-300">Tx: {formatBitsPerSecond(trafficStats.txRate)}</span>
+              <span className="text-xs text-slate-300">
+                Tx: {iface.isUp ? formatBitsPerSecond(trafficStats.txRate) : '0 bps'}
+              </span>
             </div>
             <div className="flex items-center">
               <div className="w-2 h-2 bg-red-500 rounded-full mr-1"></div>
-              <span className="text-xs text-slate-300">Rx: {formatBitsPerSecond(trafficStats.rxRate)}</span>
+              <span className="text-xs text-slate-300">
+                Rx: {iface.isUp ? formatBitsPerSecond(trafficStats.rxRate) : '0 bps'}
+              </span>
             </div>
           </div>
           
@@ -279,11 +291,15 @@ const DetailedInterfaceCard = ({ iface }: { iface: Interface }) => {
           <div className="flex items-center gap-2 mt-2">
             <div className="flex items-center">
               <div className="w-2 h-2 bg-blue-500 rounded-full mr-1"></div>
-              <span className="text-xs text-slate-300">Packet: {trafficStats.txPacketRate.toFixed(0)} p/s</span>
+              <span className="text-xs text-slate-300">
+                Packet: {iface.isUp ? `${trafficStats.txPacketRate.toFixed(0)} p/s` : '0 p/s'}
+              </span>
             </div>
             <div className="flex items-center">
               <div className="w-2 h-2 bg-red-500 rounded-full mr-1"></div>
-              <span className="text-xs text-slate-300">Packet: {trafficStats.rxPacketRate.toFixed(0)} p/s</span>
+              <span className="text-xs text-slate-300">
+                Packet: {iface.isUp ? `${trafficStats.rxPacketRate.toFixed(0)} p/s` : '0 p/s'}
+              </span>
             </div>
           </div>
           
