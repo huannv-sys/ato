@@ -55,9 +55,25 @@ const Dashboard = () => {
     device.ipAddress.includes(searchQuery)
   );
   
-  // Thiết lập thiết bị được chọn là thiết bị đầu tiên nếu chưa có thiết bị nào được chọn
+  // Đọc tham số thiết bị từ URL và thiết lập thiết bị được chọn
   useEffect(() => {
-    if (devices && devices.length > 0 && !selectedDeviceId) {
+    // Đọc device id từ URL search params
+    const params = new URLSearchParams(window.location.search);
+    const deviceIdFromUrl = params.get('device');
+    
+    if (deviceIdFromUrl && devices) {
+      // Kiểm tra thiết bị tồn tại trong danh sách
+      const deviceId = parseInt(deviceIdFromUrl, 10);
+      const deviceExists = devices.some(device => device.id === deviceId);
+      
+      if (deviceExists) {
+        setSelectedDeviceId(deviceId);
+      } else if (devices.length > 0) {
+        // Nếu thiết bị không tồn tại, chọn thiết bị đầu tiên
+        setSelectedDeviceId(devices[0].id);
+      }
+    } else if (devices && devices.length > 0 && !selectedDeviceId) {
+      // Nếu không có tham số thiết bị, chọn thiết bị đầu tiên
       setSelectedDeviceId(devices[0].id);
     }
   }, [devices, selectedDeviceId]);

@@ -28,9 +28,15 @@ const DevicesPage = () => {
   });
   
   // Lấy danh sách thiết bị và kiểm tra trạng thái kết nối
-  const { data: devices, isLoading, refetch: refetchDevices } = useQuery<Device[]>({ 
+  const { data: devices, isLoading, error, refetch: refetchDevices } = useQuery<Device[]>({ 
     queryKey: ['/api/devices?check=true'],
+    staleTime: 15000, // 15 giây
+    refetchInterval: 30000, // Tự động làm mới sau 30 giây
   });
+  
+  // Log lỗi và dữ liệu để debug
+  console.log("Devices data:", devices);
+  if (error) console.error("Error fetching devices:", error);
   
   // Lấy trạng thái các thiết bị từ scheduler
   const { data: deviceStatus, isLoading: isStatusLoading } = useQuery({ 
@@ -339,7 +345,11 @@ const DevicesPage = () => {
               <Card key={device.id} className="hover:border-primary/50 transition-colors">
                 <CardHeader className="pb-2">
                   <div className="flex justify-between items-start">
-                    <CardTitle className="text-lg">{device.name}</CardTitle>
+                    <CardTitle className="text-lg">
+                      <a href={`/dashboard?device=${device.id}`} className="hover:text-blue-500 hover:underline">
+                        {device.name}
+                      </a>
+                    </CardTitle>
                     <div className={`px-2 py-1 text-xs font-medium rounded-full ${device.isOnline ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
                       {device.isOnline ? 'Online' : 'Offline'}
                     </div>
@@ -405,7 +415,11 @@ const DevicesPage = () => {
                 <tbody className="[&_tr:last-child]:border-0">
                   {devices.map((device) => (
                     <tr key={device.id} className="border-b transition-colors hover:bg-muted/5 data-[state=selected]:bg-muted">
-                      <td className="p-4 align-middle font-medium">{device.name}</td>
+                      <td className="p-4 align-middle font-medium">
+                        <a href={`/dashboard?device=${device.id}`} className="hover:text-blue-500 hover:underline">
+                          {device.name}
+                        </a>
+                      </td>
                       <td className="p-4 align-middle">{device.ipAddress}</td>
                       <td className="p-4 align-middle">
                         <Badge variant={device.isOnline ? "success" : "destructive"}>
