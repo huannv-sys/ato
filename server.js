@@ -1,96 +1,116 @@
+// Simple server to test database connection
 const express = require('express');
 const { Pool } = require('pg');
-const dotenv = require('dotenv');
-const path = require('path');
-
-// Load environment variables
-dotenv.config();
+require('dotenv').config();
 
 const app = express();
 const port = process.env.PORT || 5000;
 const host = process.env.HOST || '0.0.0.0';
 
-// Middleware để phân tích request body 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-
-// Kết nối PostgreSQL
+// Create PostgreSQL connection pool
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL
 });
 
-app.get('/api/check', async (req, res) => {
+// Test the database connection
+async function testConnection() {
   try {
     const client = await pool.connect();
-    const result = await client.query('SELECT NOW() as time');
+    const result = await client.query('SELECT NOW()');
+    console.log('Database connection successful:', result.rows[0]);
     client.release();
-    
-    res.json({
-      status: 'success',
-      message: 'Kết nối đến cơ sở dữ liệu thành công',
-      time: result.rows[0].time,
-      database_url: process.env.DATABASE_URL ? 'Đã cấu hình' : 'Không tìm thấy'
-    });
-  } catch (error) {
-    console.error('Database error:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'Lỗi kết nối đến cơ sở dữ liệu',
-      error: error.message
-    });
+    return true;
+  } catch (err) {
+    console.error('Database connection error:', err);
+    return false;
   }
-});
+}
 
-// Hiển thị thông tin dự án
-app.get('/', (req, res) => {
+// Routes
+app.get('/', async (req, res) => {
+  const dbConnected = await testConnection();
+  
   res.send(`
     <html>
       <head>
-        <title>ATO Project</title>
+        <title>ATO - Mikrotik Management System</title>
         <style>
-          body { font-family: Arial, sans-serif; line-height: 1.6; max-width: 800px; margin: 0 auto; padding: 20px; }
-          h1 { color: #333; }
-          pre { background: #f4f4f4; padding: 10px; border-radius: 5px; }
-          .container { margin-top: 20px; }
-          button { padding: 10px 15px; background: #4CAF50; color: white; border: none; cursor: pointer; }
-          #result { margin-top: 20px; }
+          body {
+            font-family: Arial, sans-serif;
+            margin: 40px;
+            line-height: 1.6;
+          }
+          h1 {
+            color: #333;
+          }
+          .status {
+            padding: 10px;
+            margin: 20px 0;
+            border-radius: 4px;
+          }
+          .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+          }
+          .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+          }
+          pre {
+            background-color: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            overflow: auto;
+          }
         </style>
       </head>
       <body>
-        <h1>ATO Project - Kiểm tra Kết nối</h1>
-        <div class="container">
-          <p>Kiểm tra kết nối đến cơ sở dữ liệu PostgreSQL:</p>
-          <button onclick="checkConnection()">Kiểm tra Kết nối</button>
-          <div id="result"></div>
+        <h1>ATO - Mikrotik Management System</h1>
+        
+        <h2>Trạng thái hệ thống:</h2>
+        <div class="status ${dbConnected ? 'success' : 'error'}">
+          <strong>Kết nối cơ sở dữ liệu:</strong> ${dbConnected ? 'Đã kết nối' : 'Lỗi kết nối'}
         </div>
-
-        <script>
-          async function checkConnection() {
-            const resultDiv = document.getElementById('result');
-            resultDiv.innerHTML = 'Đang kiểm tra...';
-            
-            try {
-              const response = await fetch('/api/check');
-              const data = await response.json();
-              
-              resultDiv.innerHTML = \`
-                <h3>Kết quả:</h3>
-                <pre>\${JSON.stringify(data, null, 2)}</pre>
-              \`;
-            } catch (error) {
-              resultDiv.innerHTML = \`
-                <h3>Lỗi:</h3>
-                <pre>\${error.message}</pre>
-              \`;
-            }
-          }
-        </script>
+        
+        <h2>Biến môi trường:</h2>
+        <pre>
+DATABASE_URL: ${process.env.DATABASE_URL ? '✅ Đã thiết lập' : '❌ Chưa thiết lập'}
+PORT: ${process.env.PORT || '5000 (mặc định)'}
+HOST: ${process.env.HOST || '0.0.0.0 (mặc định)'}
+        </pre>
+        
+        <h2>Hướng dẫn:</h2>
+        <p>Để bắt đầu phát triển trên dự án ATO:</p>
+        <ol>
+          <li>Chạy script setup: <code>./clone_and_setup.sh</code></li>
+          <li>Di chuyển vào thư mục dự án: <code>cd ato</code></li>
+          <li>Khởi động máy chủ phát triển: <code>HOST=0.0.0.0 PORT=5000 npm run dev</code></li>
+        </ol>
       </body>
     </html>
   `);
 });
 
-// Bắt đầu máy chủ
+// API route to check database connection
+app.get('/api/status', async (req, res) => {
+  const dbConnected = await testConnection();
+  
+  res.json({
+    status: dbConnected ? 'ok' : 'error',
+    database: dbConnected ? 'connected' : 'disconnected',
+    environment: {
+      database_url_set: !!process.env.DATABASE_URL,
+      port: process.env.PORT || 5000,
+      host: process.env.HOST || '0.0.0.0'
+    },
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Start server
 app.listen(port, host, () => {
-  console.log(`Máy chủ đang chạy tại http://${host}:${port}`);
+  console.log(`Server running at http://${host}:${port}`);
+  testConnection();
 });

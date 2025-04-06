@@ -1,86 +1,64 @@
-import express, { type Request, Response, NextFunction } from "express";
-import { registerRoutes } from "./routes";
-import { setupVite, serveStatic, log } from "./vite";
-import { schedulerService } from "./services";
-import { db } from "./db"; // Import db để đảm bảo kết nối database được thiết lập
-import { sql } from "drizzle-orm";
+// File này thiết lập và chạy máy chủ
 
+import express from "express";
+import dotenv from "dotenv";
+import { registerRoutes } from "./routes";
+import { schedulerService } from "./services";
+import { log, setupVite, serveStatic } from "./vite";
+
+// Load các biến môi trường
+dotenv.config();
+
+// Thiết lập Express
 const app = express();
 app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
 
-app.use((req, res, next) => {
-  const start = Date.now();
-  const path = req.path;
-  let capturedJsonResponse: Record<string, any> | undefined = undefined;
+// Thiết lập port và host từ biến môi trường
+const PORT = process.env.PORT || 5000;
+const HOST = process.env.HOST || "localhost";
 
-  const originalResJson = res.json;
-  res.json = function (bodyJson, ...args) {
-    capturedJsonResponse = bodyJson;
-    return originalResJson.apply(res, [bodyJson, ...args]);
-  };
-
-  res.on("finish", () => {
-    const duration = Date.now() - start;
-    if (path.startsWith("/api")) {
-      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
-      }
-
-      if (logLine.length > 80) {
-        logLine = logLine.slice(0, 79) + "…";
-      }
-
-      log(logLine);
-    }
-  });
-
+// Middleware để ghi log các yêu cầu
+app.use((req: any, res: any, next: any) => {
+  log(`${req.method} ${req.url}`);
   next();
 });
 
-(async () => {
-  // Khởi tạo dịch vụ lập lịch sau khi kết nối database
+// Khởi động máy chủ
+async function startServer() {
   try {
-    // Kiểm tra kết nối database
-    await db.execute(sql`SELECT 1`);
-    console.log("Database connection established");
-    
-    // Khởi tạo scheduler service
+    // Khởi tạo scheduler
     schedulerService.initialize();
-    console.log("Scheduler service initialized");
+    
+    // Đăng ký các route
+    const server = await registerRoutes(app);
+    
+    // Thiết lập Vite hoặc phục vụ các tệp tĩnh
+    const isDev = process.env.NODE_ENV !== "production";
+    if (isDev) {
+      await setupVite(app, server);
+    } else {
+      serveStatic(app);
+    }
+    
+    // Khởi động máy chủ
+    server.listen(PORT, HOST as any, () => {
+      log(`Máy chủ đang chạy tại http://${HOST}:${PORT}`);
+    });
+    
+    // Xử lý lỗi không mong muốn
+    app.use((err: any, _req: any, res: any, _next: any) => {
+      console.error("Lỗi không mong muốn:", err);
+      res.status(500).json({
+        status: "error",
+        message: "Lỗi máy chủ nội bộ",
+        error: process.env.NODE_ENV === "development" ? err.message : undefined
+      });
+    });
+    
   } catch (error) {
-    console.error("Failed to initialize services:", error);
+    console.error("Lỗi khởi động máy chủ:", error);
+    process.exit(1);
   }
-  
-  const server = await registerRoutes(app);
+}
 
-  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-    const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
-
-    res.status(status).json({ message });
-    throw err;
-  });
-
-  // importantly only setup vite in development and after
-  // setting up all the other routes so the catch-all route
-  // doesn't interfere with the other routes
-  if (app.get("env") === "development") {
-    await setupVite(app, server);
-  } else {
-    serveStatic(app);
-  }
-
-  // ALWAYS serve the app on port 5000
-  // this serves both the API and the client.
-  // It is the only port that is not firewalled.
-  const port = 5000;
-  server.listen({
-    port,
-    host: "0.0.0.0",
-    reusePort: true,
-  }, () => {
-    log(`serving on port ${port}`);
-  });
-})();
+startServer();
